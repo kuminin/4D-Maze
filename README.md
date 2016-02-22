@@ -1,2 +1,2 @@
 # 4D-Maze
-Using a disjoint set data structure as well as the hunt and kill algorithm, the given main file will generate a 4D Maze.
+Using a disjoint set data structure as well as the hunt and kill algorithm, the given main file will generate a 4D Maze. This program will output a binary representation of the given walls starting from (0,0,0,0) up to (N-1, N-1, N-1, N-1). The current **main.cpp** file will generate a 4D maze that is 35x35x35x35 big. If you would like to generate a smaller maze, you can change **constant int N** in the **main.cpp** file.

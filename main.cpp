@@ -11,6 +11,7 @@
 #include <algorithm>
 #include <ctime>
 #include <fstream>
+#include <array>
 #include "DisjointSet.hpp"
 
 using namespace std;
@@ -18,24 +19,11 @@ void walk(int &);
 bool hunt(int &);
 bool validCoordinate(int &, int &);
 void breakWall(int &, int &);
-int myrandom(int);
+void mazeGenerationAlgorithm();
 
 const int  N = 35;
 const int maze_size = N*N*N*N;
-vector<vector<int> > direction =
-{
-    {N*N*N, 0, 0, 0},
-    {-N*N*N, 0, 0, 0},
-    {0, N*N, 0, 0},
-    {0, -N*N, 0, 0},
-    {0, 0, N, 0},
-    {0, 0, -N, 0},
-    {0, 0, 0, 1},
-    {0, 0, 0, -1},
-    
-};
-
-//DisjointSet maze[N][N][N][N];
+array<int, 8> direction = {N*N*N, -N*N*N, N*N, -N*N, N, -N, 1, -1};
 DisjointSet mazes[maze_size];
 
 // 01111111 = 127 negative in x
@@ -48,59 +36,53 @@ DisjointSet mazes[maze_size];
 // 11111110 = 254 positive in t
 
 int main(int argc, const char * argv[]) {
-    // initialize time, random point, child pid, and file
+    // seed current time and initialize file
     clock_t begin = clock();
     srand (unsigned (time(0)));
-    int q = rand() % (maze_size);
-    pid_t child;
     fstream file;
     
-    // Generate Maze
-    do {
-        walk(q);
-    } while (hunt(q));
+    // Generate Maze Using Hunt-And-Kill Algorithm.
+//    int q = 0;
+//    do {
+//        walk(q);
+//    } while (hunt(q));
+//
+    // Generate Maze Algorithm
+    mazeGenerationAlgorithm();
     
     // open file so that it will write in binary.
-    file.open(argv[1], ios::binary| ios::out);
+    file.open(argv[1], ios::binary | ios::out);
     
     // Write to the file in Bytes then close it
     for (int x = 0; x < maze_size; x++) {
+//        cout << mazes[x].getWall() << endl;
         file.write((char *) &mazes[x].m_wall, sizeof(char));
     }
     file.close();
-    
-    // If argument counter == 3 and if the third argument is T, then we will go
-    // into debug mode to check the diff of the file.
-    if (argc == 3 && !strcmp(argv[2], "T")) {
-        // Create a child process to run tester that will convert the BYTE file
-        // into string format
-        cout << "Parent Pid is " << getpid() << endl;
-        if ((child = fork()) == 0) {
-            cout << "Current Pid is " << getpid() << " running tester" << endl;
-            execlp("./tester", "tester", argv[1], (char *) NULL);
-        }
-        
-        // wait for the child to finish writing and
-        wait(&child);
-        cout << "Child is done Running and opening mainOutput" << endl;
-        // open mainOutput and write the string representation of it then close the
-        // file.
-        file.open("mainOutput", ios::out);
-        for (int i = 0; i < maze_size; i++) {
-            file << mazes[i].getWall();
-        }
-        file.close();
-        
-        // create another process to check the difference between the files
-        if (!(child = fork())) {
-            execlp("diff", "diff", "output", "mainOutput", (char *) NULL);
-        }
-
-    }
     clock_t end = clock();
     double elapsed_secs = double(end - begin) / CLOCKS_PER_SEC;
-    cout << "elapsed_secs = " << elapsed_secs << endl;
+    cout << elapsed_secs << endl;
     return 0;
+}
+
+// We will choose a random point on the given maze and randomly choose a
+// neighbor of the current existing maze. We will first validate the given
+// neighbor and if the neighbor is not connected, it has a wall up, we will
+// merge and break the walls of the neighbor and the current point. This
+// algorithm will run until the maze is fully broken down. If the current
+// point has no neighbors to merge to, remove it from the list.
+void mazeGenerationAlgorithm() {
+    int wallsDown = 0;
+    while (wallsDown < maze_size-1) {
+        int x = rand() % maze_size;
+        int dx = x + direction[rand() % direction.size()];
+        if (validCoordinate(x, dx) && mazes[x].mergeSet(mazes[dx])) {
+//          cout << "Merged " << x << " with " << dx << endl;
+            breakWall(x, dx);
+            wallsDown++;
+//          cout << "Walls Down: " << wallsDown << endl;
+        }
+    }
 }
 
 // given points x we will choose a random coordinates from the possible
@@ -110,33 +92,25 @@ int main(int argc, const char * argv[]) {
 void walk(int &x) {
     bool huntMode = false;
     do {
-        random_shuffle(direction.begin(), direction.end(), myrandom);
+        vector<int> a;
         for (int i = 0; i < direction.size(); i++) {
-            int dx;
-            for (int j = 0; j < 4; j++) {
-                if (direction[i][j] != 0) {
-                    dx = x + direction[i][j];
-//                    cout << "Merging (" << x << ") with (" << dx << ")" << endl;
-                    break;
-                }
+            int dir = direction[rand() % direction.size()];
+            while (find(a.begin(), a.end(), dir) != a.end()) {
+                dir = direction[rand() % direction.size()];
             }
+            a.push_back(dir);
+            int dx = x + dir;
             if (validCoordinate(x, dx) &&
                 mazes[x].mergeSet(mazes[dx])) {
-//                cout << "Breaking Walls..." << endl;
-//                cout << "Wall Before for (" << x << ") is " << mazes[x].getWall() << endl;
-//                cout << "Wall Before for (" << dx << ") is " << mazes[dx].getWall() << endl;
+                // cout << "Merging " << x << " With " << dx << endl;
                 breakWall(x, dx);
-//                cout << "Wall After for (" << x << ") is " << mazes[x].getWall() << endl;
-//                cout << "Wall After for (" << dx << ") is " << mazes[dx].getWall() << endl;
                 x = dx;
                 break;
             } else if (i == direction.size()-1) {
-//                cout << "Stuck, going to hunt mode" << endl;
                 huntMode = true;
-            } else {
-//                cout << "Merging Failed" << endl;
             }
         }
+        a.clear();
     } while(!huntMode);
 }
 
@@ -146,14 +120,8 @@ void walk(int &x) {
 bool hunt(int &x) {
     for (int i = 0; i < maze_size; i++) {
         if (mazes[i].m_wall == (char)255) {
-            int dx;
             for (int k = 0; k < direction.size(); k++) {
-                for (int j = 0; j < 4; j++) {
-                    if (direction[k][j] != 0) {
-                        dx = i + direction[k][j];
-                        break;
-                    }
-                }
+                int dx = i + direction[k];
                 if (validCoordinate(i, dx) && (mazes[dx].m_wall != (char)255)) {
                     mazes[i].mergeSet(mazes[dx]);
                     breakWall(i, dx);
@@ -220,6 +188,3 @@ void breakWall(int &x, int &dx) {
         mazes[dx].m_wall &= (char)254;
     }
 }
-
-// random generator function
-int myrandom (int i) { return rand()%i;}
